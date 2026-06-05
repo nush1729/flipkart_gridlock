@@ -1,0 +1,407 @@
+TECHNICAL REPORT
+Traffic Demand Prediction - Flipkart Gridlock
+
+1. PROJECT OVERVIEW
+
+The objective of this project is to predict normalized traffic demand for
+different geohash locations and future time slots. The target variable is
+`demand`, a continuous value between 0 and 1. The given data contains traffic
+observations for day 48 and the early part of day 49, while the test set asks
+for predictions on later slots of day 49.
+
+The main challenge is that the model has to predict future time slots with only
+limited same-day information available. Because of this, the solution focuses
+on combining:
+
+- historical spatial-temporal patterns from day 48,
+- early day 49 calibration signals,
+- same-day lag features from the observed morning slots,
+- static road and weather attributes,
+- neighborhood-based geohash features.
+
+
+2. DATASET ANALYSIS
+
+Files used:
+
+- dataset/train.csv
+- dataset/test.csv
+- dataset/sample_submission.csv
+
+Training data:
+
+- Number of rows: 77,299
+- Number of columns: 11 original columns
+- Days available:
+  - Day 48: 69,427 rows
+  - Day 49: 7,872 rows
+- Unique geohashes in train: 1,249
+- Time slots in train: 96 slots, from slot 0 to slot 95
+
+Test data:
+
+- Number of rows: 41,778
+- Number of columns: 10 original columns
+- Day: 49
+- Test slots: slot 9 to slot 55
+- Unique geohashes in test: 1,190
+- Common geohashes between train and test: 1,180
+
+Target variable:
+
+- Target: demand
+- Minimum demand: close to 0
+- Maximum demand: 1.0
+- Mean demand: approximately 0.094
+- Median demand: approximately 0.048
+- Standard deviation: approximately 0.142
+
+This shows that demand is right-skewed. Most regions and time slots have low
+traffic demand, while a smaller number of observations have high demand. This
+is important because the model should avoid predicting high demand everywhere.
+
+Missing values:
+
+Training data:
+
+- RoadType missing: 600 rows
+- Temperature missing: 2,495 rows
+- Weather missing: 797 rows
+
+Test data:
+
+- RoadType missing: 324 rows
+- Temperature missing: 1,349 rows
+- Weather missing: 431 rows
+
+Missing categorical values were encoded as -1. Missing temperature values were
+filled using the median temperature from the training data.
+
+Categorical variables:
+
+- RoadType contains mainly Residential, Street, and Highway.
+- Weather contains Sunny, Foggy, Rainy, and Snowy.
+- LargeVehicles is binary-like: Allowed / Not Allowed.
+- Landmarks is binary-like: Yes / No.
+
+
+3. EXPLORATORY DATA ANALYSIS
+
+The EDA focused on understanding how demand changes by location, time, road
+condition, and weather.
+
+3.1 Demand distribution
+
+The demand distribution is not uniform. Most observations have demand below
+0.1, while only a small number of rows approach the upper range near 1.0. This
+means the model needs to be accurate for low-demand regions and also detect
+localized demand spikes.
+
+3.2 Time-based behavior
+
+The timestamp column was converted into a 15-minute slot index:
+
+slot = hour * 4 + minute / 15
+
+This gave a clean numerical representation of time. Day 48 contains a full
+daily cycle, so it is useful for learning the usual demand pattern for each
+geohash and time slot. Day 49 contains only early slots in the training data,
+which makes it useful for calibrating the current day's traffic level.
+
+3.3 Location-based behavior
+
+Traffic demand is strongly location dependent. Some geohashes repeatedly show
+higher demand, while others are consistently low. Because of this, per-geohash
+mean demand and per-geohash volatility were important features.
+
+3.4 Road and weather behavior
+
+RoadType, NumberofLanes, LargeVehicles, Landmarks, Temperature, and Weather
+all provide useful context. For example, roads with more lanes or allowed large
+vehicles may behave differently from smaller residential roads. Weather can
+also affect traffic movement and demand.
+
+3.5 Spatial neighborhood behavior
+
+Nearby geohashes often have related demand patterns. If one geohash has high
+demand for a slot, neighboring geohashes may also show elevated demand because
+traffic movement is spatially connected. For this reason, geohash adjacency was
+used to build neighborhood demand features.
+
+
+4. FEATURE ENGINEERING STRATEGY
+
+The feature engineering strategy was the most important part of the solution.
+Since the dataset is small in number of days, the model cannot rely only on raw
+columns. It needs compact and meaningful features.
+
+4.1 Time features
+
+Generated features:
+
+- slot
+- hour
+- is_morn
+- is_night
+
+These features help the model understand time-of-day behavior. Slot is more
+precise, while hour and binary time flags give simpler signals.
+
+4.2 Categorical encoding
+
+RoadType was encoded as:
+
+- Residential: 0
+- Street: 1
+- Highway: 2
+- Missing/unknown: -1
+
+Weather was encoded as:
+
+- Sunny: 0
+- Foggy: 1
+- Rainy: 2
+- Snowy: 3
+- Missing/unknown: -1
+
+LargeVehicles and Landmarks were converted to binary indicators.
+
+4.3 Temperature features
+
+Temperature was filled using the training median. A binned temperature feature
+was also created using 10 bins. This helps the model capture non-linear effects
+of temperature without depending only on the raw value.
+
+4.4 Geohash-time demand features
+
+The most important signal is the demand for the same geohash and same slot on
+day 48. This is used through a Bayesian-smoothed feature:
+
+geo_ts = smoothed mean demand for (geohash, slot)
+
+Smoothing is used because some geohash-slot pairs may be noisy. The smoothed
+value combines:
+
+- the raw geohash-slot mean,
+- the overall geohash mean,
+- a smoothing strength parameter.
+
+This reduces overreaction to noisy cells.
+
+4.5 Geohash-level features
+
+Generated features:
+
+- geo_m48: mean demand of each geohash on day 48
+- geo_std48: standard deviation of demand for each geohash on day 48
+
+These represent the normal level and volatility of each location.
+
+4.6 Day 49 calibration features
+
+Since the early slots of day 49 are available in training, they were used to
+estimate the current-day level of each geohash.
+
+Generated features:
+
+- d49_gm: mean demand of the geohash in observed day 49 slots
+- geo_shift: d49_gm - day48 geohash mean
+- d48_early_gm: day48 mean for early slots
+- early_shift: day49 early mean - day48 early mean
+- early_ratio: ratio between day49 early mean and day48 early mean
+- geo_ts_shifted: geo_ts adjusted by early_shift
+- geo_ts_scaled: geo_ts adjusted by early_ratio
+
+These features help the model adapt when a location is generally busier or
+quieter on day 49 compared to day 48.
+
+4.7 Same-day lag features
+
+For test predictions, slots 0 to 8 of day 49 are known. The model uses recent
+observations from slots 6, 7, and 8 as anchors.
+
+Generated features:
+
+- lag8
+- lag7
+- lag6
+- lag3m: average of lag8, lag7, and lag6
+
+These features are useful because traffic demand has short-term continuity.
+
+4.8 Day 49 trend features
+
+For each geohash, the early part of day 49 was summarized using:
+
+- d49_trend: slope of early demand over slots 0 to 8
+- d49_last: latest observed demand
+- d49_max: maximum observed early demand
+
+These features help identify locations where traffic is rising, stable, or
+spiking.
+
+4.9 Neighbor features
+
+Using pygeohash, neighboring geohashes were calculated in eight directions:
+
+- top
+- bottom
+- left
+- right
+- four diagonal neighbors
+
+Generated features:
+
+- nbr_d48: average demand of neighboring geohashes at the same slot on day 48
+- nbr_gm: average day48 mean demand of neighboring geohashes
+
+These features capture local spatial spillover.
+
+
+5. MODEL ARCHITECTURE AND RATIONALE
+
+The final modelling approach is based on gradient boosted decision trees.
+
+Models considered:
+
+- LightGBM
+- XGBoost
+- CatBoost
+
+Reason for using boosted trees:
+
+- They work well on tabular data.
+- They can model non-linear interactions.
+- They handle mixed numerical and encoded categorical features well.
+- They are robust for medium-sized datasets.
+- They can combine time, location, road, weather, and neighborhood features.
+
+5.1 LightGBM
+
+LightGBM was used as the primary model because it is fast and performs very
+well on structured data. It also supports early stopping and feature importance
+analysis.
+
+5.2 XGBoost
+
+XGBoost was included because it often gives slightly different errors compared
+to LightGBM. This helps when predictions are blended.
+
+5.3 CatBoost
+
+CatBoost was tested as another boosting model. In this solution, categorical
+features are already numerically encoded, so CatBoost acts as another strong
+tree-based learner.
+
+5.4 Ensemble rationale
+
+The solution trains multiple tree models with slightly different depths and
+random seeds. Their validation RMSE values are used to compute blending weights.
+The idea is that different models may capture different patterns:
+
+- LightGBM captures strong tabular splits efficiently.
+- XGBoost provides a stable boosted-tree baseline.
+- CatBoost adds another model family with different regularization behavior.
+
+The final prediction is clipped between 0 and 1 because the demand target is
+normalized in that range.
+
+
+6. VALIDATION METHODOLOGY
+
+A random train-validation split was avoided because traffic rows are highly
+correlated by time and geohash. A random split would place very similar rows in
+both train and validation, giving an overly optimistic estimate.
+
+The validation approach used a time-aware split:
+
+- Train on full day 48.
+- Validate on the observed early slots of day 49.
+
+This checks whether the model can transfer from one day to the next. It is a
+harder validation setting than predicting within the same day, but it is more
+realistic for the final test because the test set is also on day 49.
+
+Metrics used:
+
+- R2 score: measures explained variance.
+- RMSE: penalizes larger errors more heavily.
+- MAE: measures average absolute prediction error.
+
+Early stopping was used during validation. This prevents unnecessary training
+after the validation error stops improving.
+
+The final model was then trained on all available official training rows from
+day 48 and observed day 49 slots before generating predictions for the test
+set.
+
+
+7. ERROR ANALYSIS
+
+7.1 Slot-wise errors
+
+The earliest test slots are generally harder because they are closest to the
+transition from observed day49 slots to unobserved future slots. If a location
+changes suddenly after slot 8, the model can underpredict or overpredict.
+
+7.2 Location-wise errors
+
+Some geohashes have unstable demand patterns. These locations are difficult
+because day48 may not fully represent day49. The model handles this using
+geo-level calibration and early day49 trend features, but unusual local changes
+can still cause error.
+
+7.3 Spike errors
+
+High-demand spikes are difficult to predict because most demand values are low.
+The target distribution is skewed, so a model trained mainly on low-demand rows
+may sometimes smooth out sharp peaks.
+
+To reduce this issue, the model includes:
+
+- d49_max to detect early spikes,
+- geo_std48 to identify volatile geohashes,
+- neighbor demand to capture nearby movement.
+
+7.4 Missing attribute errors
+
+Rows with missing RoadType, Weather, or Temperature have less context. These
+values are handled using median filling and unknown-category encoding, but
+predictions for these rows may be less accurate.
+
+7.5 Spatial boundary errors
+
+Some geohashes have fewer known neighbors in the dataset. For these locations,
+neighbor features are less informative and fall back to broader averages.
+
+
+8. FINAL PIPELINE SUMMARY
+
+The complete pipeline is:
+
+1. Load train, test, and sample submission files.
+2. Convert timestamp into 15-minute slot index.
+3. Split train into day48 and observed day49 rows.
+4. Build day48 geohash-slot demand tables.
+5. Build day49 early calibration tables.
+6. Compute geohash neighbor lists using pygeohash.
+7. Generate time, road, weather, temperature, geohash, lag, trend, and neighbor
+   features.
+8. Train boosted tree models using time-aware validation.
+9. Blend model predictions using validation-based weights.
+10. Clip predictions to [0, 1].
+11. Save final submission.csv.
+
+
+9. CONCLUSION
+
+The main learning from this project is that feature engineering is more
+important than simply increasing model complexity. Since only limited day49
+information is available, the best strategy is to combine day48 temporal
+patterns with early day49 calibration. Geohash-level signals, same-day lags,
+and neighborhood features provide strong predictive information.
+
+Boosted tree models are suitable for this problem because they can combine many
+different feature types and capture non-linear interactions. The final ensemble
+is designed to be stable, interpretable, and based only on information available
+before prediction time.
