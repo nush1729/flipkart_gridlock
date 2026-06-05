@@ -14,12 +14,6 @@ env/
 *.png
 Screenshot*.png
 
-# Large or local-only files that should not be submitted
-public available dataset.csv
-public_available_dataset.csv
-answerkey.csv
-grid_train_*.csv
-
 # OS/editor metadata
 .vscode/
 .idea/
