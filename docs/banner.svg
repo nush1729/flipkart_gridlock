@@ -1,0 +1,53 @@
+<svg width="1200" height="360" viewBox="0 0 1200 360" fill="none" xmlns="http://www.w3.org/2000/svg">
+  <defs>
+    <linearGradient id="sky" x1="0" y1="0" x2="1200" y2="360" gradientUnits="userSpaceOnUse">
+      <stop offset="0" stop-color="#0f172a"/>
+      <stop offset="0.54" stop-color="#1e293b"/>
+      <stop offset="1" stop-color="#064e3b"/>
+    </linearGradient>
+    <linearGradient id="road" x1="0" y1="360" x2="1200" y2="190" gradientUnits="userSpaceOnUse">
+      <stop offset="0" stop-color="#111827"/>
+      <stop offset="1" stop-color="#334155"/>
+    </linearGradient>
+    <filter id="soft" x="-20%" y="-20%" width="140%" height="140%">
+      <feDropShadow dx="0" dy="8" stdDeviation="10" flood-color="#000000" flood-opacity="0.28"/>
+    </filter>
+  </defs>
+
+  <rect width="1200" height="360" fill="url(#sky)"/>
+  <path d="M0 245 C170 205 280 215 430 238 C580 260 710 246 880 210 C1010 182 1115 190 1200 208 V360 H0 V245Z" fill="url(#road)"/>
+
+  <g opacity="0.42">
+    <path d="M0 288 H1200" stroke="#94a3b8" stroke-width="2"/>
+    <path d="M0 327 H1200" stroke="#64748b" stroke-width="1"/>
+    <path d="M120 306 H260" stroke="#f8fafc" stroke-width="6" stroke-linecap="round"/>
+    <path d="M380 306 H520" stroke="#f8fafc" stroke-width="6" stroke-linecap="round"/>
+    <path d="M640 306 H780" stroke="#f8fafc" stroke-width="6" stroke-linecap="round"/>
+    <path d="M900 306 H1040" stroke="#f8fafc" stroke-width="6" stroke-linecap="round"/>
+  </g>
+
+  <g transform="translate(760 80)" filter="url(#soft)">
+    <rect x="0" y="0" width="330" height="168" rx="18" fill="#f8fafc"/>
+    <rect x="24" y="24" width="84" height="46" rx="8" fill="#22c55e"/>
+    <rect x="124" y="24" width="84" height="46" rx="8" fill="#38bdf8"/>
+    <rect x="224" y="24" width="84" height="46" rx="8" fill="#f97316"/>
+    <rect x="24" y="92" width="84" height="46" rx="8" fill="#38bdf8"/>
+    <rect x="124" y="92" width="84" height="46" rx="8" fill="#f97316"/>
+    <rect x="224" y="92" width="84" height="46" rx="8" fill="#22c55e"/>
+    <path d="M66 70 V92 M166 70 V92 M266 70 V92 M108 47 H124 M208 47 H224 M108 115 H124 M208 115 H224" stroke="#0f172a" stroke-width="5" stroke-linecap="round"/>
+  </g>
+
+  <g transform="translate(132 76)">
+    <text x="0" y="0" fill="#a7f3d0" font-family="Arial, Helvetica, sans-serif" font-size="24" font-weight="700" letter-spacing="3">TEAM_BUTTERFLY</text>
+    <text x="0" y="68" fill="#ffffff" font-family="Arial, Helvetica, sans-serif" font-size="54" font-weight="800">Traffic Demand Prediction</text>
+    <text x="0" y="112" fill="#cbd5e1" font-family="Arial, Helvetica, sans-serif" font-size="25">Temporal signals + geohash intelligence + boosted tree ensemble</text>
+    <g transform="translate(0 150)">
+      <rect x="0" y="0" width="150" height="42" rx="21" fill="#22c55e"/>
+      <text x="22" y="28" fill="#052e16" font-family="Arial, Helvetica, sans-serif" font-size="18" font-weight="700">LightGBM</text>
+      <rect x="170" y="0" width="145" height="42" rx="21" fill="#38bdf8"/>
+      <text x="193" y="28" fill="#082f49" font-family="Arial, Helvetica, sans-serif" font-size="18" font-weight="700">XGBoost</text>
+      <rect x="335" y="0" width="145" height="42" rx="21" fill="#f97316"/>
+      <text x="361" y="28" fill="#431407" font-family="Arial, Helvetica, sans-serif" font-size="18" font-weight="700">CatBoost</text>
+    </g>
+  </g>
+</svg>
